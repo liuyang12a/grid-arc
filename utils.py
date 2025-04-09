@@ -67,15 +67,13 @@ class IndexedBidirectionalSet:
     def __init__(self):
         self.item_list = []
         self.item_to_index = {}
-        self.current_index = 0
 
     def add_item(self, item):
         if item in self.item_to_index:
             return self.item_to_index[item]
-        index = self.current_index
-        self.item_list[index] = item
+        index = len(self.item_list)
+        self.item_list.append(item)
         self.item_to_index[item] = index
-        self.current_index += 1
         return index
 
     def get_item(self, index):

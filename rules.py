@@ -1,5 +1,6 @@
 import numpy as np
-from utils import IndexedBidirectionalSet, TransitionMatrix, norm, entropy, kmp_search
+from utils import IndexedBidirectionalSet, TransitionMatrix, ProbabilityTransitionMatrix
+from utils import norm, entropy, kmp_search
 from collections import OrderedDict
 
 
@@ -23,9 +24,9 @@ class MetaRules:
         self.null_value = null_value
 
 class PatchKernel:
-    def __init__(self, name, kernel, center, exception_value=-1):
+    def __init__(self, name='point', kernel_map=[[1]], center=(0,0), exception_value=-1):
         self.patch_name = name
-        self.kernel = kernel
+        self.kernel = np.array(kernel_map).astype(bool)
         self.row_center = center[0]
         self.col_center = center[1]
         self.exception_value = exception_value
@@ -48,7 +49,7 @@ class PatchKernel:
         return patch_id
 
 class PatchSequence:
-    def __init__(self, kernel, grid):
+    def __init__(self, grid, kernel):
         self.kernel = kernel
         self.grid = grid
         self.patch_list = []
@@ -65,14 +66,9 @@ class PatchSequence:
             else:
                 self.state_count[state] += 1
 
-    def axs2idx(self, axs):
-        return axs[0]*self.grid.shape[0] + axs[0]
-    
-    def idx2axs(self, idx):
-        return (idx//self.grid.shape[0], idx%self.grid.shape[0])
-
-    def sequence_analyse(self, analyzer):
-        pass
+    def analyse(self, analyzer):
+        analyzer.fit(self)
+        return analyzer
 
     def get_random_entropy(self):
         return np.log2(len(self.state_count))
@@ -112,12 +108,19 @@ class PatchSequence:
 class StaticFeaturesOnRule(MetaRules):
     def __init__(self, grid):
         super().__init__()
-        self.grid = grid
+        self.origin_grid = grid
+        self.grid = np.array(grid)
         self.patch_sequences = {}
     
-    def add_patching_sequence(self, patch_kernel):
-        self.patch_sequences[patch_kernel.patch_name] = PatchSequence(patch_kernel)
-        self.patch_sequences[patch_kernel.patch_name].patching(self.grid)
+    def add_patching_sequence(self, patch_kernel=None):
+        if patch_kernel is None:
+            patch_kernel = PatchKernel()
+            self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
+        else:
+            self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
+    
+    def get_sequence(self, patch_name):
+        return self.patch_sequences[patch_name]
 
 class TransFeaturesOnRule(MetaRules):
     def __init__(self, g1, g2):
@@ -187,36 +190,10 @@ class MarkovChainAnalyzer:
         self.transition_counts = TransitionMatrix()
 
     def fit(self, sequence:PatchSequence):
-        for i in range(len(state_sequence) - 1):
-            current_state = state_sequence[i]
-            next_state = state_sequence[i + 1]
-
-            self.transition_counts.add((current_state, next_state), 1)
-
-            # 更新状态总出现次数
-            if current_state not in self.state_counts:
-                self.state_counts[current_state] = 0
-            self.state_counts[current_state] += 1
-
-        # 处理序列中的最后一个状态
-        last_state = state_sequence[-1]
-        if last_state not in self.state_counts:
-            self.state_counts[last_state] = 0
-        self.state_counts[last_state] += 1
-
-    def get_transition_matrix(self):
-        """
-        根据状态转移计数计算状态转移概率矩阵
-        :return: 状态转移概率矩阵，以字典形式表示
-        """
-        transition_matrix = {}
-        for current_state, next_states in self.transition_counts.items():
-            transition_matrix[current_state] = {}
-            total_count = self.state_counts[current_state]
-            for next_state, count in next_states.items():
-                # 计算转移概率
-                transition_matrix[current_state][next_state] = count / total_count
-        return transition_matrix
+        for i in range(len(sequence.state_list) - 1):
+            self.transition_counts.add((sequence.state_list[i], sequence.state_list[i + 1]), 1)
+        
+        self.probability_matrix = ProbabilityTransitionMatrix(self.transition_counts)
 
 
 
