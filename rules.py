@@ -1,5 +1,6 @@
 import numpy as np
-from utils import IndexStringBidirectionalDict
+from utils import IndexedBidirectionalSet, TransitionMatrix, norm, entropy, kmp_search
+from collections import OrderedDict
 
 
 def gcd(a, b):
@@ -28,7 +29,7 @@ class PatchKernel:
         self.row_center = center[0]
         self.col_center = center[1]
         self.exception_value = exception_value
-        self.patch_dict = IndexStringBidirectionalDict()
+        self.patch_dict = IndexedBidirectionalSet()
 
     def patching(self, grid):
         k_rows, k_cols = self.kernel.shape
@@ -43,7 +44,7 @@ class PatchKernel:
         for i in range(self.kernel.shape[0]):
             for j in range(self.kernel.shape[1]):
                 flatten_str = str(patch[i][j]) if patch[i][j] != self.exception_value else 'x'
-        patch_id = self.patch_dict.add_string(flatten_str)
+        patch_id = self.patch_dict.add_item(flatten_str)
         return patch_id
 
 class PatchSequence:
@@ -52,9 +53,17 @@ class PatchSequence:
         self.grid = grid
         self.patch_list = []
         self.state_list = []
+        self.states = IndexedBidirectionalSet()
+        self.state_count = {}
         for patch in self.kernel.patching(grid):
             self.patch_list.append(patch)
-            self.state_list.append(self.kernel.patch_flatten(patch))    
+            state = self.kernel.patch_flatten(patch)
+            self.state_list.append(state)    
+            if state not in self.states:
+                self.states.add_item(state)
+                self.state_count[state] = 1
+            else:
+                self.state_count[state] += 1
 
     def axs2idx(self, axs):
         return axs[0]*self.grid.shape[0] + axs[0]
@@ -62,8 +71,43 @@ class PatchSequence:
     def idx2axs(self, idx):
         return (idx//self.grid.shape[0], idx%self.grid.shape[0])
 
-    def state_list_analyse(self, analyse_method):
+    def sequence_analyse(self, analyzer):
         pass
+
+    def get_random_entropy(self):
+        return np.log2(len(self.state_count))
+
+    def get_info_entropy(self):
+        return entropy(norm(np.array([v for _, v in self.state_count.items()])))
+
+    def get_markov_entropy(self):
+        bigram_count = {}
+        for i in range(len(self.state_list)-1):
+            bigram = (self.state_list[i], self.state_list[i+1])
+            if bigram not in bigram_count:
+                bigram_count[bigram] = 1
+            else:
+                bigram_count[bigram] += 1
+        return entropy(norm(np.array([v for _, v in bigram_count.items()])))
+
+    def get_entropy_rate(self, n=None):
+        """Also known as Real-Entropy."""
+        if n is None:
+            n = len(self.state_list)
+        gamma_sum = 0
+        occured_list = []
+        for i in range(0, n):
+            hit = False
+            for j in range(i+1, n+1):
+                s = self.state_list[i:j]
+                if kmp_search(occured_list, s) == []:
+                    gamma_sum += len(s)
+                    hit = True
+                    break
+            if not hit:
+                gamma_sum += n - (i + 1) + 2
+            occured_list.append(self.state_list[i])
+        return n*np.log2(n)/gamma_sum  # Lempel-Ziv data compression as entropy_rate's estimation
 
 class StaticFeaturesOnRule(MetaRules):
     def __init__(self, grid):
@@ -140,26 +184,14 @@ class TransFeaturesOnRule(MetaRules):
     
 class MarkovChainAnalyzer:
     def __init__(self):
-        # 存储状态转移计数矩阵
-        self.transition_counts = {}
-        # 存储每个状态的总出现次数
-        self.state_counts = {}
+        self.transition_counts = TransitionMatrix()
 
-    def fit(self, state_sequence):
-        """
-        根据输入的状态序列来训练马尔科夫链，计算状态转移计数和状态总出现次数
-        :param state_sequence: 离散状态序列，由自然数表示状态
-        """
+    def fit(self, sequence:PatchSequence):
         for i in range(len(state_sequence) - 1):
             current_state = state_sequence[i]
             next_state = state_sequence[i + 1]
 
-            # 更新状态转移计数
-            if current_state not in self.transition_counts:
-                self.transition_counts[current_state] = {}
-            if next_state not in self.transition_counts[current_state]:
-                self.transition_counts[current_state][next_state] = 0
-            self.transition_counts[current_state][next_state] += 1
+            self.transition_counts.add((current_state, next_state), 1)
 
             # 更新状态总出现次数
             if current_state not in self.state_counts:
