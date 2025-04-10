@@ -56,7 +56,7 @@ def kmp_search(text: list, pattern: list) -> list:
 
 
 def norm(mtx):
-    row_sums = mtx.sum(axis=1, keepdims=True)
+    row_sums = mtx.sum(axis=-1, keepdims=True)
     row_sums[row_sums == 0] = 1
     return mtx / row_sums
 
@@ -87,6 +87,9 @@ class IndexedBidirectionalSet:
 
     def __len__(self):
         return len(self.item_list)
+    
+    def __str__(self):
+        return str(self.item_list)
 
     def items(self):
         return enumerate(self.item_list)

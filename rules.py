@@ -9,9 +9,15 @@ def gcd(a, b):
         a, b = b, a % b
     return a
 
-def mask(grid, bool_mask, start_axs=(0,0), exception_value=0, copy=True):
+def mask(grid, bool_mask, start_axs=(0,0), exception_value=0, copy=True, filter_mode=True):
+    """ if copy == True then mask grid's copy rather than grid itself.
+        if filter_mode=True then bool_mask's True location of grid will be filtered to exception_value. 
+        actually, if filter_mode == False, means the reserve_mode
+    """
     if copy:
         grid = grid.copy()
+    if not filter_mode:
+        bool_mask = ~bool_mask
     mask_rows, mask_cols = bool_mask.shape
     start_row, start_col =  start_axs
     target_region = grid[start_row:start_row + mask_rows, start_col:start_col + mask_cols]
@@ -34,17 +40,17 @@ class PatchKernel:
 
     def patching(self, grid):
         k_rows, k_cols = self.kernel.shape
-        pad_width = ((self.row_center, k_rows-self.row_center), (self.col_center, k_cols-self.col_center))
+        pad_width = ((self.row_center, k_rows-self.row_center-1), (self.col_center, k_cols-self.col_center-1))
         pad_grid = np.pad(grid, pad_width=pad_width, mode='constant', constant_values=self.exception_value)
         for i in range(grid.shape[0]):
             for j in range(grid.shape[1]):
-                yield mask(pad_grid, self.kernel, start_axs=(i,j), exception_value=self.exception_value)
+                yield mask(pad_grid[i:i+k_rows,j:j+k_cols], self.kernel, exception_value=self.exception_value, filter_mode=False)
     
     def patch_flatten(self, patch):
         flatten_str = ''
         for i in range(self.kernel.shape[0]):
             for j in range(self.kernel.shape[1]):
-                flatten_str = str(patch[i][j]) if patch[i][j] != self.exception_value else 'x'
+                flatten_str += str(patch[i][j]) if patch[i][j] != self.exception_value else 'x'
         patch_id = self.patch_dict.add_item(flatten_str)
         return patch_id
 
@@ -84,7 +90,7 @@ class PatchSequence:
                 bigram_count[bigram] = 1
             else:
                 bigram_count[bigram] += 1
-        return entropy(norm(np.array([v for _, v in bigram_count.items()])))
+        return np.log2(len(bigram_count)),entropy(norm(np.array([v for _, v in bigram_count.items()])))
 
     def get_entropy_rate(self, n=None):
         """Also known as Real-Entropy."""
@@ -118,6 +124,7 @@ class StaticFeaturesOnRule(MetaRules):
             self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
         else:
             self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
+        return self.patch_sequences[patch_kernel.patch_name]
     
     def get_sequence(self, patch_name):
         return self.patch_sequences[patch_name]
