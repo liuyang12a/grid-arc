@@ -29,10 +29,22 @@ class MetaRules:
     def __init__(self, null_value=0):
         self.null_value = null_value
 
-class PatchKernel:
-    def __init__(self, name='point', kernel_map=[[1]], center=(0,0), exception_value=-1):
-        self.patch_name = name
+class  PatchKernel:
+    def __init__(self, name='1', exception_value=-1):
+        kernel_map = []
+        center = [0,0]
+        for i, s in enumerate(name.split('|')):
+            row_map = []
+            for j, c in enumerate(s):
+                if c == '*':
+                    center = [i, j]
+                    row_map.append(1)
+                else:
+                    row_map.append(int(c))
+            kernel_map.append(row_map)
+        self.name = name
         self.kernel = np.array(kernel_map).astype(bool)
+        self.kernel_size = self.kernel.sum()
         self.row_center = center[0]
         self.col_center = center[1]
         self.exception_value = exception_value
@@ -75,6 +87,17 @@ class PatchSequence:
     def analyse(self, analyzer):
         analyzer.fit(self)
         return analyzer
+    
+    def get_entropys(self):
+        markov_random, markov_info = self.get_markov_entropy()
+        return {
+            'kernel_name': self.kernel.name,
+            "random": self.get_random_entropy(), 
+            "info": self.get_info_entropy(),
+            "m_random":markov_random,
+            "m_info": markov_info,
+            "real": self.get_entropy_rate()
+        }
 
     def get_random_entropy(self):
         return np.log2(len(self.state_count))
@@ -121,13 +144,13 @@ class StaticFeaturesOnRule(MetaRules):
     def add_patching_sequence(self, patch_kernel=None):
         if patch_kernel is None:
             patch_kernel = PatchKernel()
-            self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
+            self.patch_sequences[patch_kernel.name] = PatchSequence(self.grid, patch_kernel)
         else:
-            self.patch_sequences[patch_kernel.patch_name] = PatchSequence(self.grid, patch_kernel)
-        return self.patch_sequences[patch_kernel.patch_name]
+            self.patch_sequences[patch_kernel.name] = PatchSequence(self.grid, patch_kernel)
+        return self.patch_sequences[patch_kernel.name]
     
-    def get_sequence(self, patch_name):
-        return self.patch_sequences[patch_name]
+    def get_sequence(self, name):
+        return self.patch_sequences[name]
 
 class TransFeaturesOnRule(MetaRules):
     def __init__(self, g1, g2):

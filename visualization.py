@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from io import BytesIO
+from PIL import Image
 
 # 定义颜色映射，ARC 数据集中通常有 10 种颜色（0 - 9）
 colors = [
@@ -93,3 +95,34 @@ def show_task_example(ex, columns=6):
 
 
     show_grids(grids, columns, title, sub_titles)
+
+def plot_dataframe(df, x_label, title=None, y_label=None):
+
+    x = df[x_label]
+    ys= df.columns.drop(x_label)
+    for column in ys:
+        plt.plot(x, df[column], label=column)
+
+    # 添加图标题、x 轴标签、y 轴标签和图例
+    plt.title(title)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.legend()
+
+    # 显示网格线
+    plt.grid(True)
+    plt.xticks(rotation=90)
+
+    buf = BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+
+    # 从内存中的数据创建 PIL 的 Image 对象
+    img = Image.open(buf)
+
+    # 关闭当前的 matplotlib 图形
+    plt.close()
+
+    # 返回 Image 对象
+    return img
+
