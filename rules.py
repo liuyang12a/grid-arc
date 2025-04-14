@@ -29,7 +29,7 @@ class MetaRules:
     def __init__(self, null_value=0):
         self.null_value = null_value
 
-class  PatchKernel:
+class PatchKernel:
     def __init__(self, name='1', exception_value=-1):
         kernel_map = []
         center = [0,0]
@@ -84,9 +84,13 @@ class PatchSequence:
             else:
                 self.state_count[state] += 1
 
-    def analyse(self, analyzer):
-        analyzer.fit(self)
-        return analyzer
+    def attention_analysis(self, analyzer):
+        self.state_attention = analyzer.fit(self)
+        rows, cols = self.grid.shape
+        attention_map = np.zeros((rows, cols))
+        for i, state in enumerate(self.state_list):
+            attention_map[i//cols, i%cols] = self.state_attention[state]
+        return attention_map
     
     def get_entropys(self):
         markov_random, markov_info = self.get_markov_entropy()
@@ -216,14 +220,15 @@ class TransFeaturesOnRule(MetaRules):
         return overlap_grid, overlap_axis, overlap_count, [row_min, column_min]
     
 class MarkovChainAnalyzer:
-    def __init__(self):
-        self.transition_counts = TransitionMatrix()
+    def __init__(self, epsilon=0.0001):
+        self.epsilon = epsilon
 
     def fit(self, sequence:PatchSequence):
+        self.transition_counts = TransitionMatrix()
         for i in range(len(sequence.state_list) - 1):
             self.transition_counts.add((sequence.state_list[i], sequence.state_list[i + 1]), 1)
-        
-        self.probability_matrix = ProbabilityTransitionMatrix(self.transition_counts)
+        self.probability_matrix = ProbabilityTransitionMatrix(self.transition_counts, self.epsilon)
+        return self.probability_matrix.get_stationary_distribution()
 
 
 

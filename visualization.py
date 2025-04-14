@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 from io import BytesIO
 from PIL import Image
 
@@ -17,6 +18,19 @@ colors = [
     [135, 12, 37]   # 深紫色
 ]
 line_color = [85,85,85] #深灰色
+
+def attention_to_image(grid, grid_pixels=15, line_pixels=0):
+    if isinstance(grid, list):
+        grid = np.array(grid)
+    height, width = grid.shape
+    image = np.zeros((line_pixels+height*(grid_pixels+line_pixels), line_pixels+width*(grid_pixels+line_pixels), 3), dtype=np.uint8)
+    image[:,:] = 0
+    for i in range(height):
+        for j in range(width):
+            attention = grid[i, j]
+            strength = int(255*attention)
+            image[i*(line_pixels+grid_pixels)+line_pixels:(i+1)*(line_pixels+grid_pixels), j*(line_pixels+grid_pixels)+line_pixels:(j+1)*(line_pixels+grid_pixels)] = [strength,strength,strength]     
+    return image
 
 def grid_to_image(grid, grid_pixels=15, line_pixels=1):
     """
@@ -126,3 +140,13 @@ def plot_dataframe(df, x_label, title=None, y_label=None):
     # 返回 Image 对象
     return img
 
+def save_image(image, file_path):
+    directory = os.path.dirname(file_path)
+    # 检查目录是否存在，不存在则创建
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    plt.cla()
+    plt.imshow(image)
+    plt.axis('off')
+    plt.savefig(file_path)
+    plt.close('all')

@@ -117,7 +117,7 @@ class TransitionMatrix:
 
     def __init__(self):
         self.matrix = {}
-        self.states = OrderedDict()
+        self.states = IndexedBidirectionalSet()
 
     def get(self, indices):
         i, j = indices
@@ -126,19 +126,19 @@ class TransitionMatrix:
                 return self.matrix[i][j]
         return None
     
-    def _check_null(self, indices):
+    def _check_state(self, indices):
         for x in indices:
-            if x not in self.states.keys():
-                self.states[x] = len(self.states)
+            if x not in self.states:
+                self.states.add_item(x)
                 self.matrix[x] = {}
 
     def set(self, indices, value):
-        self._check_null(indices)
+        self._check_state(indices)
         i, j = indices
-        self.matrix[i][j] = {j:value}
+        self.matrix[i][j] = value
 
     def add(self, indices, value):
-        self._check_null(indices)
+        self._check_state(indices)
         i, j = indices
         if j not in self.matrix[i].keys():
             self.matrix[i][j] = value
@@ -146,13 +146,13 @@ class TransitionMatrix:
             self.matrix[i][j] += value
     
 class ProbabilityTransitionMatrix:
-    def __init__(self, trans_mtx: TransitionMatrix, epsilon=0):
-        self.states = trans_mtx.states.copy()
+    def __init__(self, trans_mtx: TransitionMatrix, epsilon=0.0001):
+        self.states = trans_mtx.states
         state_num = len(self.states)
-        self.matrix = np.zeros(state_num, state_num)
+        self.matrix = np.zeros((state_num, state_num))
         for cur, nexts in trans_mtx.matrix.items():
             for nxt, count in nexts.items():
-                self.matrix[cur][nxt] = count
+                self.matrix[self.states.get_index(cur)][self.states.get_index(nxt)] = count
         self.matrix = norm(self.matrix)
         for i, row in enumerate(self.matrix):
             if sum(row) == 0:
@@ -160,3 +160,17 @@ class ProbabilityTransitionMatrix:
         if epsilon != 0:
             self.matrix[self.matrix == 0] = epsilon
         self.matrix = norm(self.matrix)
+    
+    def get_stationary_distribution(self):
+        P = self.matrix
+        n = P.shape[0]
+
+        # 构建线性方程组 Ax = b
+        # 我们要解的方程是 (P.T - I) * pi = 0，同时加上归一化条件 sum(pi) = 1
+        A = np.vstack((P.T - np.eye(n), np.ones(n)))
+        b = np.zeros(n + 1)
+        b[-1] = 1
+
+        # 求解线性方程组
+        pi = np.linalg.lstsq(A, b, rcond=None)[0]
+        return {state: pi[i] for i, state in self.states.items()}

@@ -1,41 +1,11 @@
-from visualization import show_grids, show_grid, show_task_example
+from visualization import show_grids, show_grid, show_task_example, attention_to_image, save_image, plot_dataframe, grid_to_image
 from data_loader import GridDataSet
-from rules import TransFeaturesOnRule, StaticFeaturesOnRule, PatchKernel
+from rules import TransFeaturesOnRule, StaticFeaturesOnRule, PatchKernel, MarkovChainAnalyzer
 
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
-def plot_dataframe(df, x_label, title=None, y_label=None):
-
-    x = df[x_label]
-    ys= df.columns.drop(x_label)
-    for column in ys:
-        plt.plot(x, df[column], label=column)
-
-    # 添加图标题、x 轴标签、y 轴标签和图例
-    plt.title(title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.legend()
-
-    # 显示网格线
-    plt.grid(True)
-    plt.xticks(rotation=90)
-
-    buf = BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-
-    # 从内存中的数据创建 PIL 的 Image 对象
-    img = Image.open(buf)
-
-    # 关闭当前的 matplotlib 图形
-    plt.close()
-
-    # 返回 Image 对象
-    return img
 
 
 kernel_params = [
@@ -57,17 +27,22 @@ train_loader.load_solution('arc-prize-2024/arc-agi_training_solutions.json')
 ex = train_loader.get_task_example_by_id('06df4c85')
 grid = ex['train'][0]['input']
 
-entropys = []
+count = 0
+for ex in train_loader.iter_task_examples():
+    count+=1
+    if count == 100:
+        break
+    iid = ex['id']
+    grid = ex['train'][0]['input']
+    save_image(grid_to_image(grid), 'images/%s/0.png'%(iid))
 
-statics = StaticFeaturesOnRule(grid)
-for kernel in kernels:
-    seq = statics.add_patching_sequence(kernel)
-    entropys.append(seq.get_entropys())
-
-entropys = pd.DataFrame(entropys)
-img = plot_dataframe(entropys, 'kernel_name')
-plt.imshow(img)
-plt.axis('off')
-
-# 显示图形
-plt.show()
+    entropys = []
+    statics = StaticFeaturesOnRule(grid)
+    for i, kernel in enumerate(kernels):
+        seq = statics.add_patching_sequence(kernel)
+        entropys.append(seq.get_entropys())
+        attention = seq.attention_analysis(MarkovChainAnalyzer())
+        save_image(attention_to_image(attention), 'images/%s/%02d.(%d)%s.png'%(iid, i, kernel.kernel_size, kernel.name.replace('|', '_').replace('*', 'c')))
+    entropys = pd.DataFrame(entropys)
+    # img = plot_dataframe(entropys, 'kernel_name')
+    save_image(plot_dataframe(entropys, 'kernel_name'), 'images/%s/entorpys.png'%(iid))
