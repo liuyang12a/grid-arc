@@ -25,7 +25,6 @@ def compute_lps(pattern: list) -> list:
                 i += 1
     return lps
 
-
 def kmp_search(text: list, pattern: list) -> list:
     """
     KMP（Knuth-Morris-Pratt）
@@ -54,11 +53,16 @@ def kmp_search(text: list, pattern: list) -> list:
                 i += 1
     return indices
 
-
 def norm(mtx):
     row_sums = mtx.sum(axis=-1, keepdims=True)
     row_sums[row_sums == 0] = 1
     return mtx / row_sums
+
+def laplace_smoothing(prob_distribution):
+    num_classes = len(prob_distribution)
+    prob_distribution = np.array(prob_distribution)
+    smoothed_distribution = (prob_distribution + 1) / (np.sum(prob_distribution) + num_classes)
+    return smoothed_distribution.tolist()
 
 def entropy(probability_distribution):
     return -np.sum([p * np.log2(p) for p in probability_distribution if p > 0])

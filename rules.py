@@ -1,5 +1,5 @@
 import numpy as np
-from utils import IndexedBidirectionalSet, TransitionMatrix, ProbabilityTransitionMatrix
+from utils import IndexedBidirectionalSet, TransitionMatrix, ProbabilityTransitionMatrix, laplace_smoothing
 from utils import norm, entropy, kmp_search
 from collections import OrderedDict
 
@@ -36,7 +36,7 @@ class PatchKernel:
         for i, s in enumerate(name.split('|')):
             row_map = []
             for j, c in enumerate(s):
-                if c == '*':
+                if c == 'c':
                     center = [i, j]
                     row_map.append(1)
                 else:
@@ -85,7 +85,15 @@ class PatchSequence:
                 self.state_count[state] += 1
 
     def attention_analysis(self, analyzer):
-        self.state_attention = analyzer.fit(self)
+        probabilities = analyzer.fit(self)
+        states, probs = [], []
+        for k, v in probabilities.items():
+            states.append(k)
+            probs.append(-np.log2(v))
+        attentions = laplace_smoothing(probs)
+        self.state_attention = {}
+        for i in range(len(states)):
+            self.state_attention[states[i]] = attentions[i]
         rows, cols = self.grid.shape
         attention_map = np.zeros((rows, cols))
         for i, state in enumerate(self.state_list):
